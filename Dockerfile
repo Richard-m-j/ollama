@@ -24,15 +24,7 @@ COPY ml ml
 RUN --mount=type=cache,target=/root/.ccache \
     cmake --preset 'CPU' -DCMAKE_INSTALL_PREFIX=/dist && \
     cmake --build --parallel --preset 'CPU' && \
-    cmake --install build --component CPU --strip && \
-    echo "=== Debugging: Contents of /dist ===" && \
-    find /dist -type f 2>/dev/null | head -20 || echo "No /dist directory found" && \
-    echo "=== Debugging: Contents of /usr/local ===" && \
-    find /usr/local -name "*ollama*" 2>/dev/null | head -20 || echo "No ollama files in /usr/local" && \
-    echo "=== Debugging: All .so and .a files ===" && \
-    find /ollama -name "*.so*" -o -name "*.a" 2>/dev/null | head -20 || echo "No .so or .a files found" && \
-    echo "=== Debugging: Contents of build directory ===" && \
-    find build -name "*.so*" -o -name "*.a" 2>/dev/null | head -20 || echo "No .so or .a files in build"
+    cmake --install build --component CPU --strip
 # STAGE 3: Build the Go application binary
 FROM builder AS go-builder
 WORKDIR /go/src/github.com/ollama/ollama
