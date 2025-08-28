@@ -24,7 +24,15 @@ COPY ml ml
 RUN --mount=type=cache,target=/root/.ccache \
     cmake --preset 'CPU' -DCMAKE_INSTALL_PREFIX=/dist && \
     cmake --build --parallel --preset 'CPU' && \
-    cmake --install build --component CPU --strip
+    cmake --install build --component CPU --strip && \
+    echo "=== Debugging: Contents of /dist ===" && \
+    find /dist -type f 2>/dev/null | head -20 || echo "No /dist directory found" && \
+    echo "=== Debugging: Contents of /usr/local ===" && \
+    find /usr/local -name "*ollama*" 2>/dev/null | head -20 || echo "No ollama files in /usr/local" && \
+    echo "=== Debugging: All .so and .a files ===" && \
+    find /ollama -name "*.so*" -o -name "*.a" 2>/dev/null | head -20 || echo "No .so or .a files found" && \
+    echo "=== Debugging: Contents of build directory ===" && \
+    find build -name "*.so*" -o -name "*.a" 2>/dev/null | head -20 || echo "No .so or .a files in build"
 # STAGE 3: Build the Go application binary
 FROM builder AS go-builder
 WORKDIR /go/src/github.com/ollama/ollama
@@ -45,7 +53,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 RUN groupadd -r ollama && useradd --no-log-init -r -g ollama -m ollama
 COPY --chown=ollama:ollama --from=go-builder /bin/ollama /usr/bin/ollama
-COPY --chown=ollama:ollama --from=cpu-builder /usr/local/lib/ollama /usr/lib/ollama
+COPY --chown=ollama:ollama --from=cpu-builder /dist /usr/lib/ollama
 USER ollama
 ENV OLLAMA_HOST=0.0.0.0:11434
 EXPOSE 11434
