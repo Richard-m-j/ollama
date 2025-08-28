@@ -22,7 +22,7 @@ COPY CMakeLists.txt CMakePresets.json .
 COPY ml ml
 # Build the CPU library using a cache mount for faster rebuilds
 RUN --mount=type=cache,target=/root/.ccache \
-    cmake --preset 'CPU' && \
+    cmake --preset 'CPU' -DCMAKE_INSTALL_PREFIX=/dist && \
     cmake --build --parallel --preset 'CPU' && \
     cmake --install build --component CPU --strip
 # STAGE 3: Build the Go application binary
@@ -45,7 +45,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 RUN groupadd -r ollama && useradd --no-log-init -r -g ollama -m ollama
 COPY --chown=ollama:ollama --from=go-builder /bin/ollama /usr/bin/ollama
-COPY --chown=ollama:ollama --from=cpu-builder /dist/lib/ollama /usr/lib/ollama
+COPY --chown=ollama:ollama --from=cpu-builder /usr/local/lib/ollama /usr/lib/ollama
 USER ollama
 ENV OLLAMA_HOST=0.0.0.0:11434
 EXPOSE 11434
