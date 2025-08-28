@@ -1,11 +1,10 @@
 # vim: filetype=dockerfile
 
 # STAGE 1: Build environment with necessary compilers and tools
-# We use AlmaLinux 8 as the base, consistent with the original Dockerfile for amd64 builds.
-FROM --platform=linux/amd64 almalinux:8 AS builder
+# Use the automatic TARGETPLATFORM build argument instead of a hardcoded value.
+FROM --platform=$TARGETPLATFORM almalinux:8 AS builder
 
 # Install EPEL repo to get ccache, then install build essentials.
-# Consolidating RUN commands reduces image layers.
 RUN dnf update -y && \
     dnf install -y epel-release && \
     dnf install -y \
@@ -24,9 +23,10 @@ ENV PATH=/opt/rh/gcc-toolset-11/root/usr/bin:$PATH
 FROM builder AS cpu-builder
 
 WORKDIR /ollama
-# Copy only the necessary source code for the backend
+# Copy the necessary source code for the backend build.
+# Copying the entire 'ml' directory is more robust.
 COPY CMakeLists.txt CMakePresets.json .
-COPY ml/backend/ggml/ggml ml/backend/ggml/ggml
+COPY ml ml
 
 # Build the CPU library using a cache mount for faster rebuilds
 RUN --mount=type=cache,target=/root/.ccache \
