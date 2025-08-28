@@ -1,123 +1,82 @@
 # vim: filetype=dockerfile
 
-ARG FLAVOR=${TARGETARCH}
+# STAGE 1: Build environment with necessary compilers and tools
+# We use AlmaLinux 8 as the base, consistent with the original Dockerfile for amd64 builds.
+FROM --platform=linux/amd64 almalinux:8 AS builder
 
-ARG ROCMVERSION=6.3.3
-ARG JETPACK5VERSION=r35.4.1
-ARG JETPACK6VERSION=r36.4.0
-ARG CMAKEVERSION=3.31.2
+# Install EPEL repo to get ccache, then install build essentials.
+# Consolidating RUN commands reduces image layers.
+RUN dnf update -y && \
+    dnf install -y epel-release && \
+    dnf install -y \
+      git \
+      cmake \
+      ccache \
+      gcc-toolset-11-gcc \
+      gcc-toolset-11-gcc-c++ && \
+    dnf clean all
 
-# We require gcc v10 minimum.  v10.3 has regressions, so the rockylinux 8.5 AppStream has the latest compatible version
-FROM --platform=linux/amd64 rocm/dev-almalinux-8:${ROCMVERSION}-complete AS base-amd64
-RUN yum install -y yum-utils \
-    && yum-config-manager --add-repo https://dl.rockylinux.org/vault/rocky/8.5/AppStream/\$basearch/os/ \
-    && rpm --import https://dl.rockylinux.org/pub/rocky/RPM-GPG-KEY-Rocky-8 \
-    && dnf install -y yum-utils ccache gcc-toolset-10-gcc-10.2.1-8.2.el8 gcc-toolset-10-gcc-c++-10.2.1-8.2.el8 gcc-toolset-10-binutils-2.35-11.el8 \
-    && dnf install -y ccache \
-    && yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo
-ENV PATH=/opt/rh/gcc-toolset-10/root/usr/bin:$PATH
-
-FROM --platform=linux/arm64 almalinux:8 AS base-arm64
-# install epel-release for ccache
-RUN yum install -y yum-utils epel-release \
-    && dnf install -y clang ccache \
-    && yum-config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel8/sbsa/cuda-rhel8.repo
-ENV CC=clang CXX=clang++
-
-FROM base-${TARGETARCH} AS base
-ARG CMAKEVERSION
-RUN curl -fsSL https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}-linux-$(uname -m).tar.gz | tar xz -C /usr/local --strip-components 1
-COPY CMakeLists.txt CMakePresets.json .
-COPY ml/backend/ggml/ggml ml/backend/ggml/ggml
-ENV LDFLAGS=-s
-
-FROM base AS cpu
-RUN dnf install -y gcc-toolset-11-gcc gcc-toolset-11-gcc-c++
+# Add the newer compiler to the path
 ENV PATH=/opt/rh/gcc-toolset-11/root/usr/bin:$PATH
-RUN --mount=type=cache,target=/root/.ccache \
-    cmake --preset 'CPU' \
-        && cmake --build --parallel --preset 'CPU' \
-        && cmake --install build --component CPU --strip --parallel 8
 
-FROM base AS cuda-12
-ARG CUDA12VERSION=12.8
-RUN dnf install -y cuda-toolkit-${CUDA12VERSION//./-}
-ENV PATH=/usr/local/cuda-12/bin:$PATH
-RUN --mount=type=cache,target=/root/.ccache \
-    cmake --preset 'CUDA 12' \
-        && cmake --build --parallel --preset 'CUDA 12' \
-        && cmake --install build --component CUDA --strip --parallel 8
+# STAGE 2: Build the CPU backend library
+# This stage compiles the C++ backend for Ollama.
+FROM builder AS cpu-builder
 
-FROM base AS rocm-6
-ENV PATH=/opt/rocm/hcc/bin:/opt/rocm/hip/bin:/opt/rocm/bin:/opt/rocm/hcc/bin:$PATH
-RUN --mount=type=cache,target=/root/.ccache \
-    cmake --preset 'ROCm 6' \
-        && cmake --build --parallel --preset 'ROCm 6' \
-        && cmake --install build --component HIP --strip --parallel 8
-
-FROM --platform=linux/arm64 nvcr.io/nvidia/l4t-jetpack:${JETPACK5VERSION} AS jetpack-5
-ARG CMAKEVERSION
-RUN apt-get update && apt-get install -y curl ccache \
-    && curl -fsSL https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}-linux-$(uname -m).tar.gz | tar xz -C /usr/local --strip-components 1
+WORKDIR /ollama
+# Copy only the necessary source code for the backend
 COPY CMakeLists.txt CMakePresets.json .
 COPY ml/backend/ggml/ggml ml/backend/ggml/ggml
-RUN --mount=type=cache,target=/root/.ccache \
-    cmake --preset 'JetPack 5' \
-        && cmake --build --parallel --preset 'JetPack 5' \
-        && cmake --install build --component CUDA --strip --parallel 8
 
-FROM --platform=linux/arm64 nvcr.io/nvidia/l4t-jetpack:${JETPACK6VERSION} AS jetpack-6
-ARG CMAKEVERSION
-RUN apt-get update && apt-get install -y curl ccache \
-    && curl -fsSL https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}-linux-$(uname -m).tar.gz | tar xz -C /usr/local --strip-components 1
-COPY CMakeLists.txt CMakePresets.json .
-COPY ml/backend/ggml/ggml ml/backend/ggml/ggml
+# Build the CPU library using a cache mount for faster rebuilds
 RUN --mount=type=cache,target=/root/.ccache \
-    cmake --preset 'JetPack 6' \
-        && cmake --build --parallel --preset 'JetPack 6' \
-        && cmake --install build --component CUDA --strip --parallel 8
+    cmake --preset 'CPU' && \
+    cmake --build --parallel --preset 'CPU' && \
+    cmake --install build --component CPU --strip --parallel 8
 
-FROM base AS build
+# STAGE 3: Build the Go application binary
+# This stage compiles the main Ollama application.
+FROM builder AS go-builder
+
 WORKDIR /go/src/github.com/ollama/ollama
-COPY go.mod go.sum .
-RUN curl -fsSL https://golang.org/dl/go$(awk '/^go/ { print $2 }' go.mod).linux-$(case $(uname -m) in x86_64) echo amd64 ;; aarch64) echo arm64 ;; esac).tar.gz | tar xz -C /usr/local
-ENV PATH=/usr/local/go/bin:$PATH
-RUN go mod download
+# Copy all Go source code
 COPY . .
-ARG GOFLAGS="'-ldflags=-w -s'"
+
+# Install the correct Go version based on go.mod
+RUN curl -fsSL "https://golang.org/dl/go$(awk '/^go/ { print $2 }' go.mod).linux-amd64.tar.gz" | tar xz -C /usr/local
+ENV PATH=/usr/local/go/bin:$PATH
+
+# Download Go module dependencies and build the binary
 ENV CGO_ENABLED=1
-ARG CGO_CFLAGS
-ARG CGO_CXXFLAGS
 RUN --mount=type=cache,target=/root/.cache/go-build \
+    go mod download && \
     go build -trimpath -buildmode=pie -o /bin/ollama .
 
-FROM --platform=linux/amd64 scratch AS amd64
-COPY --from=cuda-12 dist/lib/ollama /lib/ollama
-
-FROM --platform=linux/arm64 scratch AS arm64
-COPY --from=cuda-12 dist/lib/ollama /lib/ollama/cuda_sbsa
-COPY --from=jetpack-5 dist/lib/ollama /lib/ollama/cuda_jetpack5
-COPY --from=jetpack-6 dist/lib/ollama /lib/ollama/cuda_jetpack6
-
-FROM scratch AS rocm
-COPY --from=rocm-6 dist/lib/ollama /lib/ollama
-
-FROM ${FLAVOR} AS archive
-COPY --from=cpu dist/lib/ollama /lib/ollama
-COPY --from=build /bin/ollama /bin/ollama
-
+# STAGE 4: Final production image
+# Start from a minimal, well-known base image.
 FROM ubuntu:24.04
-RUN apt-get update \
-    && apt-get install -y ca-certificates \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-COPY --from=archive /bin /usr/bin
-ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-COPY --from=archive /lib/ollama /usr/lib/ollama
-ENV LD_LIBRARY_PATH=/usr/local/nvidia/lib:/usr/local/nvidia/lib64
-ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
-ENV NVIDIA_VISIBLE_DEVICES=all
+
+# Install only necessary runtime dependencies
+RUN apt-get update && \
+    apt-get install -y ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create a dedicated, unprivileged user and group for the application.
+# The -m flag creates a home directory at /home/ollama.
+RUN groupadd -r ollama && useradd --no-log-init -r -g ollama -m ollama
+
+# Copy the compiled Go binary and set ownership to the new user
+COPY --chown=ollama:ollama --from=go-builder /bin/ollama /usr/bin/ollama
+
+# Copy the compiled C++ CPU library and set ownership to the new user
+COPY --chown=ollama:ollama --from=cpu-builder /dist/lib/ollama /usr/lib/ollama
+
+# Switch to the non-root user
+USER ollama
+
 ENV OLLAMA_HOST=0.0.0.0:11434
 EXPOSE 11434
-ENTRYPOINT ["/bin/ollama"]
+
+ENTRYPOINT ["/usr/bin/ollama"]
 CMD ["serve"]
