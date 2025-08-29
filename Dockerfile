@@ -38,7 +38,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     go mod download && \
     go build -trimpath -buildmode=pie -o /bin/ollama .
 # STAGE 4: Final production image
-FROM ubuntu:24.04
+FROM debian:bookworm-slim
 RUN apt-get update && \
     apt-get install -y ca-certificates && \
     apt-get clean && \
