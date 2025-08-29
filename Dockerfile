@@ -1,6 +1,5 @@
 # vim: filetype=dockerfile
 # STAGE 1: Build environment with necessary compilers and tools
-# The --platform flag is redundant and has been removed as per the new warning.
 FROM almalinux:8 AS builder
 # Install EPEL repo and a COMPLETE C/C++ toolchain (gcc, g++, and binutils).
 RUN dnf update -y && \
@@ -39,15 +38,23 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     go build -trimpath -buildmode=pie -o /bin/ollama .
 # STAGE 4: Final production image
 FROM debian:bookworm-slim
+
 RUN apt-get update && \
-    apt-get install -y ca-certificates && \
+    apt-get install -y --no-install-recommends ca-certificates && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user for security
 RUN groupadd -r ollama && useradd --no-log-init -r -g ollama -m ollama
+
+# Copy the application binary and its libraries
 COPY --chown=ollama:ollama --from=go-builder /bin/ollama /usr/bin/ollama
 COPY --chown=ollama:ollama --from=cpu-builder /dist /usr/lib/ollama
+
+# Set the user and runtime environment
 USER ollama
 ENV OLLAMA_HOST=0.0.0.0:11434
 EXPOSE 11434
+
 ENTRYPOINT ["/usr/bin/ollama"]
 CMD ["serve"]
