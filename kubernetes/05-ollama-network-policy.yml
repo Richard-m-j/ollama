@@ -18,5 +18,8 @@ spec:
     - podSelector:
         matchLabels:
           app: backend
+    ports:
+    - protocol: TCP
+      port: 11434
   egress:
   - {}
