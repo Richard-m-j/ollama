@@ -22,6 +22,13 @@ spec:
         image: richardjoseph1/ollama-kube-openwebui:latest
         ports:
         - containerPort: 11434
+        resources:
+          requests:
+            cpu: "2000m"
+            memory: "2Gi"
+          limits:
+            cpu: "4000m"
+            memory: "4Gi"
         volumeMounts:
         - name: ollama-data
           mountPath: /ollama/.ollama
