@@ -1,0 +1,22 @@
+# 2. 'ollama' policy 
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ollama-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: ollama
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: open-webui
+    - podSelector:
+        matchLabels:
+          app: backend
+  egress:
+  - {}
