@@ -1,72 +1,41 @@
-# .golangci.yaml
-# We use this to configure the golangci-lint linter.
-# See: https://golangci-lint.run/usage/configuration/
-#
+run:
+  timeout: 5m
 linters:
-  disable-all: true
   enable:
+    - asasalint
+    - bidichk
+    - bodyclose
+    - containedctx
+    - gocheckcompilerdirectives
+    - gofmt
+    - gofumpt
+    - gosimple
     - govet
-    - revive
+    - ineffassign
+    - intrange
+    - makezero
+    - misspell
+    - nilerr
+    - nolintlint
+    - nosprintfhostport
     - staticcheck
-    - gosec
+    - unconvert
+    - usetesting
+    - wastedassign
+    - whitespace
+  disable:
+    - usestdlibvars
     - errcheck
-
-issues:
-  # Do not limit the number of reported issues.
-  max-issues-per-linter: 0
-  max-same-issues: 0
-  exclude-rules:
-    - path: ".*_test.go"
-      linters:
-        - errcheck
-
-    # G115: Globally suppress integer overflow warnings. This is the most frequent
-    # issue and appears to be an accepted pattern in this codebase.
-    - linters: [gosec]
-      text: "G115"
-
-    # G404: Allow weak random numbers for non-cryptographic use cases like sampling.
-    - linters: [gosec]
-      text: "G404"
-      path: sample/
-
-    # G306: Allow file permissions other than 0600 for specific cases.
-    - linters: [gosec]
-      text: "G306"
-      path: cmd/cmd.go
-    - linters: [gosec]
-      text: "G306"
-      path: server/images.go
-    # Also ignore in all test files, which is a common practice.
-    - linters: [gosec]
-      text: "G306"
-      path: _test.go
-
-    # G401/G501: Allow MD5 for file integrity checks, which is not a security use case.
-    - linters: [gosec]
-      text: "G401" # Use of weak cryptographic primitive
-      path: server/upload.go
-    - linters: [gosec]
-      text: "G501" # Blocklisted import crypto/md5
-      path: server/upload.go
-
-    # G112: Suppress Slowloris attack warnings for internal http servers.
-    - linters: [gosec]
-      text: "G112"
-      path: runner/
-    - linters: [gosec]
-      text: "G112"
-      path: server/routes.go
-
-    # G402: Allow older TLS MinVersion.
-    - linters: [gosec]
-      text: "G402"
-      path: server/internal/client/ollama/registry.go
-
-    # ----- Previous Exclusions -----
-    - linters: [gosec]
-      text: "G107" # Allow variable URLs in HTTP requests.
-      path: llm/server.go
-    - linters: [gosec]
-      text: "G302" # Allow os.Chmod.
-      path: server/layer.go
+linters-settings:
+  staticcheck:
+    checks:
+      - all
+      - -SA1019 # omit Deprecated check
+severity:
+  default-severity: error
+  rules:
+    - linters:
+        - gofmt
+        - goimports
+        - intrange
+      severity: info

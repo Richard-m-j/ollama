@@ -10,9 +10,13 @@ on:
 
 jobs:
   # JOB 1: Lints the code, verifies the application builds, and runs unit tests.
+  # This job is now correctly configured to match the repository's build process.
   lint-build-and-test:
     name: Lint, Build & Test
     runs-on: ubuntu-latest
+    env:
+      # CRITICAL: CGo must be enabled for this project to build correctly.
+      CGO_ENABLED: '1'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,9 +30,14 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
+      - name: Generate code
+        # CRITICAL: This step generates necessary files required by the linter and compiler.
+        run: go generate ./...
+
       - name: Lint code
         uses: golangci/golangci-lint-action@v6
         with:
+          # Using the same arguments as the repo's own test workflow.
           args: --timeout 10m0s -v
 
       - name: Build application
@@ -59,8 +68,7 @@ jobs:
 
       - name: Static Application Security Testing (SAST) with Gitleaks
         uses: gitleaks/gitleaks-action@v2
-        with:
-          config-path: .gitleaks.toml
+        # Note: You may need to create a .gitleaks.toml configuration file for this to work optimally.
 
   # JOB 3: Performs in-depth static analysis with CodeQL.
   codeql-analysis:
@@ -77,6 +85,15 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: go
+
+      - name: Build application for CodeQL
+        # CodeQL needs to observe the build, so we must build again here
+        # with the correct environment variables.
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          go generate ./...
+          go build -v ./...
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
