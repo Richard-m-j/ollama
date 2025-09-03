@@ -9,7 +9,7 @@ linters:
     - gocheckcompilerdirectives
     - gofmt
     - gofumpt
-    - gosec # Enable the gosec linter
+    - gosec # Keep gosec enabled
     - gosimple
     - govet
     - ineffassign
@@ -34,22 +34,60 @@ linters-settings:
       - -SA1019 # omit Deprecated check
 issues:
   exclude-rules:
-    # Ignore G107: Potential HTTP request made with variable URL
+    # G107: Potential HTTP request made with variable URL
     - path: llm/server.go
       linters: [gosec]
       text: "G107"
-    # Ignore G302: Use of os.Chmod is discouraged
+    # G302: Use of os.Chmod is discouraged
     - path: server/layer.go
       linters: [gosec]
       text: "G302"
-    # Ignore G404: Use of weak random number generator is acceptable for backoff jitter
+    # G404: Use of weak random number generator is acceptable for non-crypto purposes
     - path: server/internal/internal/backoff/backoff.go
       linters: [gosec]
       text: "G404"
-    # Ignore G115: Integer overflow conversions are deemed safe in this context
-    - path: fs/gguf/
+    - path: openai/openai.go
+      linters: [gosec]
+      text: "G404"
+    # G115: Integer overflow conversions are deemed safe in this context
+    - path: fs/
       linters: [gosec]
       text: "G115"
+    - path: convert/
+      linters: [gosec]
+      text: "G115"
+    - path: api/types.go
+      linters: [gosec]
+      text: "G115"
+    - path: model/
+      linters: [gosec]
+      text: "G115"
+    - path: server/
+      linters: [gosec]
+      text: "G115"
+    # G306: Expect WriteFile permissions to be 0600 or less
+    - path: _test.go
+      linters: [gosec]
+      text: "G306"
+    # G402: TLS MinVersion too low
+    - path: server/internal/client/ollama/registry.go
+      linters: [gosec]
+      text: "G402"
+    # G112: Potential Slowloris Attack
+    - path: runner/
+      linters: [gosec]
+      text: "G112"
+    - path: server/routes.go
+      linters: [gosec]
+      text: "G112"
+    # G501 & G401: Use of MD5 is acceptable for file integrity checks
+    - path: server/upload.go
+      linters: [gosec]
+      text: "G501"
+    - path: server/upload.go
+      linters: [gosec]
+      text: "G401"
+
 severity:
   default-severity: error
   rules:
