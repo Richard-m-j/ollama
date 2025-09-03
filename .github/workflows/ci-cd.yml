@@ -20,7 +20,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: 'go.mod' # Automatically uses the Go version from go.mod
           cache: true
 
       - name: Install dependencies
@@ -29,13 +29,14 @@ jobs:
       - name: Lint code
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.58.0
+          # Use the same arguments as the existing test workflow
+          args: --timeout 10m0s -v
 
       - name: Build application
         run: go build -v ./...
 
       - name: Run unit tests
-        run: go test -v ./...
+        run: go test -count=1 -benchtime=1x ./...
 
   # JOB 2: Runs security scans for vulnerable dependencies (SCA) and secrets (SAST).
   security-scans:
@@ -48,7 +49,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version-file: 'go.mod'
           cache: true
 
       - name: Install dependencies
@@ -60,6 +61,7 @@ jobs:
       - name: Static Application Security Testing (SAST) with Gitleaks
         uses: gitleaks/gitleaks-action@v2
         with:
+          # You may need to create a .gitleaks.toml configuration file
           config-path: .gitleaks.toml
 
   # JOB 3: Performs in-depth static analysis with CodeQL.
