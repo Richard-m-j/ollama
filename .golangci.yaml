@@ -34,18 +34,22 @@ linters-settings:
       - -SA1019 # omit Deprecated check
 issues:
   exclude-rules:
-    # Ignore G107: Potential HTTP request made with variable URL in llm/server.go
-    # This is an acceptable risk in this context for fetching models.
+    # Ignore G107: Potential HTTP request made with variable URL
     - path: llm/server.go
-      linters:
-        - gosec
+      linters: [gosec]
       text: "G107"
-    # Ignore G302: Use of os.Chmod is discouraged in server/layer.go
-    # This is necessary for setting correct file permissions.
+    # Ignore G302: Use of os.Chmod is discouraged
     - path: server/layer.go
-      linters:
-        - gosec
+      linters: [gosec]
       text: "G302"
+    # Ignore G404: Use of weak random number generator is acceptable for backoff jitter
+    - path: server/internal/internal/backoff/backoff.go
+      linters: [gosec]
+      text: "G404"
+    # Ignore G115: Integer overflow conversions are deemed safe in this context
+    - path: fs/gguf/
+      linters: [gosec]
+      text: "G115"
 severity:
   default-severity: error
   rules:
