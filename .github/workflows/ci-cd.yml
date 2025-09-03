@@ -1,0 +1,114 @@
+# This is the name of the consolidated workflow.
+name: CI & CD Pipeline
+
+# Triggers the workflow on push or pull request events but only for the "main" branch.
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # JOB 1: Lints the code, verifies the application builds, and runs unit tests.
+  lint-build-and-test:
+    name: Lint, Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Lint code
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.58.0
+
+      - name: Build application
+        run: go build -v ./...
+
+      - name: Run unit tests
+        run: go test -v ./...
+
+  # JOB 2: Runs security scans for vulnerable dependencies (SCA) and secrets (SAST).
+  security-scans:
+    name: Security Scans (SCA & SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Software Component Analysis (SCA)
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
+
+      - name: Static Application Security Testing (SAST) with Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          config-path: .gitleaks.toml
+
+  # JOB 3: Performs in-depth static analysis with CodeQL.
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:go"
+
+  # JOB 4: Builds and pushes the Docker image to Docker Hub.
+  # This job will ONLY run after the three CI jobs above succeed, and only on a push to main.
+  build-and-push-docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    
+    # Define dependencies: This job waits for the CI jobs to be successful.
+    needs: [lint-build-and-test, security-scans, codeql-analysis]
+    
+    # Define condition: This job only runs for push events on the main branch.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/ollama:latest 
