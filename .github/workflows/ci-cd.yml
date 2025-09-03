@@ -100,7 +100,6 @@ jobs:
   build-and-push-docker:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    continue-on-error: true 
     needs: [lint-build-and-test, security-scans, codeql-analysis]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
