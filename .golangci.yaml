@@ -9,6 +9,7 @@ linters:
     - gocheckcompilerdirectives
     - gofmt
     - gofumpt
+    - gosec # Enable the gosec linter
     - gosimple
     - govet
     - ineffassign
@@ -31,6 +32,20 @@ linters-settings:
     checks:
       - all
       - -SA1019 # omit Deprecated check
+issues:
+  exclude-rules:
+    # Ignore G107: Potential HTTP request made with variable URL in llm/server.go
+    # This is an acceptable risk in this context for fetching models.
+    - path: llm/server.go
+      linters:
+        - gosec
+      text: "G107"
+    # Ignore G302: Use of os.Chmod is discouraged in server/layer.go
+    # This is necessary for setting correct file permissions.
+    - path: server/layer.go
+      linters:
+        - gosec
+      text: "G302"
 severity:
   default-severity: error
   rules:
