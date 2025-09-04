@@ -19,7 +19,7 @@ spec:
           claimName: ollama-data-pvc
       containers:
       - name: ollama
-        image: richardjoseph1/ollama:c8e7f40a6b179e1d22ac4fc16bedf67d41ada0e2
+        image: richardjoseph1/ollama:65fa87671d32895b976ea3bcec27c2af717c1c28
         ports:
         - containerPort: 11434
         resources:
