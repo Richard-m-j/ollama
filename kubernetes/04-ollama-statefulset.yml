@@ -19,7 +19,7 @@ spec:
           claimName: ollama-data-pvc
       containers:
       - name: ollama
-        image: richardjoseph1/ollama:65fa87671d32895b976ea3bcec27c2af717c1c28
+        image: richardjoseph1/ollama:c8e7f40a6b179e1d22ac4fc16bedf67d41ada0e2
         ports:
         - containerPort: 11434
         resources:
@@ -27,7 +27,7 @@ spec:
             cpu: "1000m"
             memory: "2Gi"
           limits:
-            cpu: "4000m"
+            cpu: "1800m"
             memory: "4Gi"
         volumeMounts:
         - name: ollama-data
