@@ -123,12 +123,9 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          # CHANGED: Tag the image with the Git commit SHA instead of 'latest'.
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/ollama:${{ github.sha }}
 
       - name: Update deployment manifest
-        # ADDED: This step updates the image tag in your deployment file.
-        # IMPORTANT: Please verify the path to your deployment file is correct.
         run: |
           sed -i "s|image: .*|image: ${{ secrets.DOCKERHUB_USERNAME }}/ollama:${{ github.sha }}|g" kubernetes/04-ollama-statefulset.yml
 
